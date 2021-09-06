@@ -8,12 +8,13 @@
 #include <chrono>
 #include <unordered_set>
 #include <fstream>
+#include <assert.h>
 using namespace std;
 using uintE  = unsigned int;
 using intE = int;
 using uintT = unsigned long;
 using intT = long;
-using clock = std::chrono::high_resolution_clock;
+using clocker = std::chrono::high_resolution_clock;
 
 struct Graph{
   intT n, nVal;
@@ -30,10 +31,10 @@ struct Graph{
     offsets = new intT[n];
     degs = new intT[n];
     edges = new intT[m];
-    for(intT i=0; i<n; i++) cin >> offsets[i];
+    for(intT i=0; i<n; i++) fin >> offsets[i];
     for(intT i=0; i<n-1; i++) degs[i]=offsets[i+1]-offsets[i];
     degs[n-1] = m-offsets[n-1];
-    for(intT i=0; i<m; i++) cin >> edges[i];
+    for(intT i=0; i<m; i++) fin >> edges[i];
   }
   Graph(const Graph& G)
       : n(G.n),
@@ -42,7 +43,7 @@ struct Graph{
   {
     degs = new intT[n]; offsets = new intT[n]; edges = new intT[m];
     copy(G.degs, G.degs+n, degs); copy(G.offsets, G.offsets+n, offsets);
-    copy(G.edges, G.edges+n, edges); 
+    copy(G.edges, G.edges+m, edges); 
   }
 
   Graph& operator=(const Graph& G){
@@ -50,7 +51,7 @@ struct Graph{
     n = G.n; nVal = G.nVal; m = G.m;
     degs = new intT[n]; offsets = new intT[n]; edges = new intT[m];
     copy(G.degs, G.degs+n, degs); copy(G.offsets, G.offsets+n, offsets);
-    copy(G.edges, G.edges+n, edges); 
+    copy(G.edges, G.edges+m, edges); 
     return *this;
   }
 
@@ -138,7 +139,7 @@ struct dyn_arr {
 		if (new_size + size > capacity) {
 			intT new_capacity = max(2 * (new_size + size), (intT)2000); // k dyn array min bucket size = 2000
 			E* nA = new E[new_capacity];
-      copy(A, A+size, nA);
+      		copy(A, A+size, nA);
 			if (alloc) {
 				delete[] A; // clear for new
 			}
@@ -146,9 +147,6 @@ struct dyn_arr {
 			capacity = new_capacity;
 			alloc = true;
 		}
-	}
-	inline void insert(E val, intT pos) { 
-		A[size + pos] = val; 
 	}
 	inline void push_back(E val) {
       	A[size] = val;
@@ -215,7 +213,7 @@ struct Buckets{
 inline pair<double, double> PeelFixA(Graph& G, vector<intT>& Deg, intT alpha, intT n_a, intT n_b);
 inline pair<double, double> PeelFixB(Graph& G, vector<intT>& Deg, intT beta, intT n_a, intT n_b);
 
-inline void BiCore_serial(Graph &G, intT bipartition, intT detla)
+inline void BiCore_serial(Graph &G, intT bipartition, intT delta)
 {
 	cout << "starting" << endl;
 	const intT n = G.n;					// # of vertices
@@ -226,18 +224,16 @@ inline void BiCore_serial(Graph &G, intT bipartition, intT detla)
 	vector<intT> DA(n);
 	for(intT i=0; i<n; i++) DA[i] = G.degs[i];
 	vector<intT> DB = DA;
-	Graph GA = G;
-	Graph GB = G;
 	cout<<"finished preprocessing"<<endl;
 	for(intT core = 1; core<=delta; core++){
 		cout<<"running PeelFixA core "<<core<<endl;
-		auto ret = PeelFixA(GA, DA, core, n_a, n_b);
+		auto ret = PeelFixA(G, DA, core, n_a, n_b);
 		pqt += ret.first;
 		pt += ret.second;
 	}
 	for(intT core = 1; core<=delta; core++){
 		cout<<"running PeelFixB core "<<core<<endl;
-		auto ret = PeelFixB(GB, DB, core, n_a, n_b);
+		auto ret = PeelFixB(G, DB, core, n_a, n_b);
 		pqt += ret.first;
 		pt += ret.second;
 	}
@@ -249,15 +245,16 @@ inline void BiCore_serial(Graph &G, intT bipartition, intT detla)
 int main(int argc, char** argv){
 	// first argument should be bipartition, second should be kcore, third should be file path
 	ios_base::sync_with_stdio(0);
-	assert(argc == 3);
-	intT bi = stol(string(argv[0]));
-	intT delta = stol(string(argv[1]));
-	string file_path(argv[1]);
+	assert(argc == 4);
+	intT bi = stol(string(argv[1]));
+	intT delta = stol(string(argv[2]));
+	string file_path(argv[3]);
+	cout<<"reading graph from "<<file_path<<endl;
 	Graph G(file_path);
-	auto st = clock::now();
+	auto st = clocker::now();
 	BiCore_serial(G, bi, delta);
-	auto et = clock::now();
-	cout<<"Total runtime: "<<chrono::duration_cast<chrono::seconds>(et-st).count()<<endl;
+	auto et = clocker::now();
+	cout<<"Total runtime: "<<chrono::duration_cast<chrono::nanoseconds>(et-st).count()/1000000000.0<<endl;
 }
 
 inline pair<double, double> PeelFixA(Graph& G, vector<intT>& Deg, intT alpha, intT n_a, intT n_b)
@@ -279,7 +276,7 @@ inline pair<double, double> PeelFixA(Graph& G, vector<intT>& Deg, intT alpha, in
 			intT deg_ui = G.degs[ui];
 			intT offset_ui = G.offsets[ui];
 			for(intT i = 0; i<deg_ui; i++){
-				intT vi = G.edges[i+deg_ui];
+				intT vi = G.edges[i+offset_ui];
 				if(Deg[vi]-- ==1){
 					intT deg_vi = G.degs[vi];
 					intT offset_vi = G.offsets[vi];
